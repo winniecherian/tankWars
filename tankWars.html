@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tank Wars</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        canvas {
+            border: 1px solid black;
+            background-color: white;
+        }
+        #instructions {
+            margin-bottom: 10px;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="instructions">
+        Player 1: WASD to move, Space to shoot.<br>
+        Player 2: Arrow keys to move, Enter to shoot.
+    </div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script>
+        // Get canvas and context
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game constants
+        const tankSpeed = 2;      // Pixels per frame
+        const rotationSpeed = 0.05; // Radians per frame
+        const bulletSpeed = 5;    // Pixels per frame
+
+        // Tank objects
+        const tank1 = {
+            x: 100,              // Starting x position
+            y: 300,              // Starting y position
+            angle: 0,            // Facing right (0 radians)
+            color: 'red',        // Player 1 color
+            bullet: { active: false } // Bullet status
+        };
+        const tank2 = {
+            x: 700,              // Starting x position
+            y: 300,              // Starting y position
+            angle: Math.PI,      // Facing left (180 degrees)
+            color: 'blue',       // Player 2 color
+            bullet: { active: false } // Bullet status
+        };
+
+        // Game state
+        let gameOver = false;
+        let winner = '';
+
+        // Track keyboard input
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // Draw a tank
+        function drawTank(tank) {
+            ctx.save();
+            ctx.translate(tank.x, tank.y);
+            ctx.rotate(tank.angle);
+            ctx.fillStyle = tank.color;
+            ctx.fillRect(-20, -10, 40, 20); // Tank body: 40x20 pixels
+            ctx.fillRect(0, -2.5, 30, 5);  // Barrel: 30x5 pixels
+            ctx.restore();
+        }
+
+        // Draw a bullet
+        function drawBullet(bullet) {
+            if (bullet.active) {
+                ctx.beginPath();
+                ctx.arc(bullet.x, bullet.y, 3, 0, Math.PI * 2); // Bullet radius: 3 pixels
+                ctx.fillStyle = 'black';
+                ctx.fill();
+            }
+        }
+
+        // Update tank position and handle shooting
+        function updateTank(tank, forwardKey, backwardKey, leftKey, rightKey, shootKey) {
+            if (keys[leftKey]) {
+                tank.angle -= rotationSpeed; // Rotate left
+            }
+            if (keys[rightKey]) {
+                tank.angle += rotationSpeed; // Rotate right
+            }
+            if (keys[forwardKey]) {
+                tank.x += tankSpeed * Math.cos(tank.angle); // Move forward
+                tank.y += tankSpeed * Math.sin(tank.angle);
+            }
+            if (keys[backwardKey]) {
+                tank.x -= tankSpeed * Math.cos(tank.angle); // Move backward
+                tank.y -= tankSpeed * Math.sin(tank.angle);
+            }
+            // Keep tank within canvas bounds
+            tank.x = Math.max(20, Math.min(canvas.width - 20, tank.x));
+            tank.y = Math.max(10, Math.min(canvas.height - 10, tank.y));
+            // Shoot bullet
+            if (keys[shootKey] && !tank.bullet.active) {
+                tank.bullet.active = true;
+                tank.bullet.x = tank.x + 30 * Math.cos(tank.angle); // Start at barrel end
+                tank.bullet.y = tank.y + 30 * Math.sin(tank.angle);
+                tank.bullet.angle = tank.angle;
+            }
+        }
+
+        // Update bullet position
+        function updateBullet(bullet) {
+            if (bullet.active) {
+                bullet.x += bulletSpeed * Math.cos(bullet.angle); // Move bullet
+                bullet.y += bulletSpeed * Math.sin(bullet.angle);
+                // Deactivate if off screen
+                if (bullet.x < 0 || bullet.x > canvas.width || bullet.y < 0 || bullet.y > canvas.height) {
+                    bullet.active = false;
+                }
+            }
+        }
+
+        // Check collision between bullet and tank
+        function checkCollision(bullet, tank) {
+            if (!bullet.active) return false;
+            const dx = bullet.x - tank.x;
+            const dy = bullet.y - tank.y;
+            // Transform bullet position into tank's local coordinates
+            const localX = dx * Math.cos(-tank.angle) - dy * Math.sin(-tank.angle);
+            const localY = dx * Math.sin(-tank.angle) + dy * Math.cos(-tank.angle);
+            // Check if bullet is within tank's body (40x20 rectangle)
+            return (localX > -20 && localX < 20 && localY > -10 && localY < 10);
+        }
+
+        // Main game loop
+        function gameLoop() {
+            if (gameOver) {
+                ctx.font = '30px Arial';
+                ctx.fillStyle = 'black';
+                ctx.fillText(winner + ' wins!', canvas.width / 2 - 100, canvas.height / 2);
+                return;
+            }
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+            // Update tanks
+            updateTank(tank1, 'w', 's', 'a', 'd', ' ');
+            updateTank(tank2, 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter');
+            // Update bullets
+            updateBullet(tank1.bullet);
+            updateBullet(tank2.bullet);
+            // Check collisions
+            if (checkCollision(tank1.bullet, tank2)) {
+                winner = 'Player 1';
+                gameOver = true;
+            }
+            if (checkCollision(tank2.bullet, tank1)) {
+                winner = 'Player 2';
+                gameOver = true;
+            }
+            // Draw everything
+            drawTank(tank1);
+            drawTank(tank2);
+            drawBullet(tank1.bullet);
+            drawBullet(tank2.bullet);
+            requestAnimationFrame(gameLoop); // Next frame
+        }
+
+        // Start the game
+        gameLoop();
+    </script>
+</body>
+</html>
